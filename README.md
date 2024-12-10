@@ -87,7 +87,3 @@ This program retrieves messages from a specified Discord channel and searches fo
 ## Author
 
 This program was created by Sem_De_Pem.
-
-## License
-
-This project is licensed under the MIT License.
