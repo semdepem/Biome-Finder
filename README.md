@@ -86,7 +86,7 @@ This program retrieves messages from a specified Discord channel and searches fo
 
 ## Author
 
-This program was created by Sem_DE_Pem.
+This program was created by Sem_De_Pem.
 
 ## License
 
