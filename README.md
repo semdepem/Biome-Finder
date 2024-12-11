@@ -33,7 +33,7 @@ This program retrieves messages from a specified Discord channel and searches fo
         sudo apt-get install python3-tk
         ```
 
-4. **Create a [config.json](http://_vscodecontentref_/3) file in the same directory as [main.py](http://_vscodecontentref_/4) and add your Discord authorization code:**
+4. **Edit the [config.json](http://_vscodecontentref_/3) file that is in the same directory as [main.py](http://_vscodecontentref_/4) and add your Discord authorization code:**
     ```json
     {
         "AUTHORIZATION_CODE": "your_discord_authorization_code",
