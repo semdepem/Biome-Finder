@@ -1,32 +1,32 @@
 import tkinter as tk
-from tkinter import scrolledtext, messagebox
+from tkinter import scrolledtext
 from datetime import datetime
 import threading
 import requests
 import re
 import time
 import webbrowser
-import json
 
 class BiomeFinderApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Sols RNG Biome Finder")
-        self.root.geometry("600x400")
+        self.root.geometry("800x600")
 
-        self.config = self.load_config()
         self.LOG_LIMIT = 100
         self.stop_event = threading.Event()
         self.PREDETERMINED_LINK = "https://www.roblox.com/games/15532962292/Sols-RNG-Eon1-1?privateServerLinkCode="
-        self.CHANNEL_ID = "1282542323590496277"
-        self.AUTHORIZATION_CODE = self.config["AUTHORIZATION_CODE"]
+
+        self.ultra_fast_join = False
+        self.faster_join = False
+
+        self.CHANNEL_IDS = {
+            "Biomes": "1282542323590496277",
+            "Merchants": "1282543762425516083"
+        }
 
         self.create_widgets()
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
-
-    def load_config(self):
-        with open('config.json') as config_file:
-            return json.load(config_file)
 
     def create_widgets(self):
         frame = tk.Frame(self.root, bg="white")
@@ -38,15 +38,50 @@ class BiomeFinderApp:
         self.keyword_entry = tk.Entry(frame, font=("Helvetica", 12), bg="lightgrey", bd=0)
         self.keyword_entry.pack(side=tk.LEFT, padx=5)
 
+        auth_label = tk.Label(frame, text="Authorization Code:", font=("Helvetica", 12), bg="white")
+        auth_label.pack(side=tk.LEFT, padx=5)
+
+        self.auth_entry = tk.Entry(frame, font=("Helvetica", 12), bg="lightgrey", bd=0, show="*")
+        self.auth_entry.pack(side=tk.LEFT, padx=5)
+
         self.start_button = tk.Button(frame, text="Start", command=self.start_retrieving, font=("Helvetica", 12), bg="green", fg="white", bd=0, disabledforeground="white")
         self.start_button.pack(side=tk.LEFT, padx=5)
 
         self.stop_button = tk.Button(frame, text="Stop", command=self.stop_retrieving, font=("Helvetica", 12), bg="red", fg="white", bd=0)
         self.stop_button.pack(side=tk.LEFT, padx=5)
 
-        self.text_area = scrolledtext.ScrolledText(self.root, wrap=tk.WORD, width=80, height=20, font=("Helvetica", 10), bg="white", bd=0)
+        toggle_frame = tk.Frame(self.root, bg="white")
+        toggle_frame.pack(pady=10, padx=10, fill=tk.X)
+
+        self.ultra_fast_join_button = tk.Button(toggle_frame, text="Ultra Fast Join: OFF", command=self.toggle_ultra_fast_join, font=("Helvetica", 12), bg="blue", fg="white", bd=0)
+        self.ultra_fast_join_button.pack(side=tk.LEFT, padx=5)
+
+        self.faster_join_button = tk.Button(toggle_frame, text="Faster Join: OFF", command=self.toggle_faster_join, font=("Helvetica", 12), bg="orange", fg="white", bd=0)
+        self.faster_join_button.pack(side=tk.LEFT, padx=5)
+
+        search_label = tk.Label(toggle_frame, text="Searching for:", font=("Helvetica", 12), bg="white")
+        search_label.pack(side=tk.LEFT, padx=5)
+
+        self.search_var = tk.StringVar(value="Biomes")
+        self.search_dropdown = tk.OptionMenu(toggle_frame, self.search_var, "Biomes", "Merchants")
+        self.search_dropdown.config(font=("Helvetica", 12), bg="lightgrey", bd=0)
+        self.search_dropdown.pack(side=tk.LEFT, padx=5)
+
+        self.text_area = scrolledtext.ScrolledText(self.root, wrap=tk.WORD, width=100, height=25, font=("Helvetica", 10), bg="white", bd=0)
         self.text_area.pack(padx=10, pady=10)
         self.text_area.config(state=tk.DISABLED)
+
+    def toggle_ultra_fast_join(self):
+        self.ultra_fast_join = not self.ultra_fast_join
+        state = "ON" if self.ultra_fast_join else "OFF"
+        self.ultra_fast_join_button.config(text=f"Ultra Fast Join: {state}")
+        self.log_message(f"Ultra Fast Join {state}")
+
+    def toggle_faster_join(self):
+        self.faster_join = not self.faster_join
+        state = "ON" if self.faster_join else "OFF"
+        self.faster_join_button.config(text=f"Faster Join: {state}")
+        self.log_message(f"Faster Join {state}")
 
     def log_message(self, message):
         timestamp = datetime.now().strftime("[%H:%M]")
@@ -68,13 +103,27 @@ class BiomeFinderApp:
     def is_valid_link(self, url):
         return url.startswith(self.PREDETERMINED_LINK)
 
-    def retrieve_messages(self, channelid, keyword):
-        limit = 1
+    def start_retrieving(self):
+        keyword = self.keyword_entry.get().strip()
+        self.AUTHORIZATION_CODE = self.auth_entry.get().strip()
+        if not keyword:
+            self.log_message('Error: Please enter a keyword.')
+            return
+        if not self.AUTHORIZATION_CODE:
+            self.log_message('Error: Please enter the authorization code.')
+            return
+        self.stop_event.clear()
+        threading.Thread(target=self.retrieve_messages, args=(keyword,)).start()
+
+    def retrieve_messages(self, keyword):
         headers = {
-            'authorization': self.AUTHORIZATION_CODE
+            'Authorization': self.AUTHORIZATION_CODE,
+            'User-Agent': 'Mozilla/5.0'
         }
         url_pattern = re.compile(r'https?://\S+')
         backoff = 1
+        limit = 2
+        channelid = self.CHANNEL_IDS[self.search_var.get()]
 
         while not self.stop_event.is_set():
             last_message_id = None
@@ -99,6 +148,7 @@ class BiomeFinderApp:
                     continue
                 elif r.status_code != 200:
                     self.log_message(f'Error: Received status code {r.status_code}')
+                    self.log_message(f'Enter a valid Authorization code in the config file.')
                     return
 
                 messages = r.json()
@@ -115,43 +165,39 @@ class BiomeFinderApp:
                                         if self.is_valid_link(url):
                                             self.log_message(f'Opening link: {url}')
                                             webbrowser.open(url)
-                                    self.log_message('Match found. Waiting for 3 minutes before restarting the search...')
-                                    for _ in range(180):
-                                        if self.stop_event.is_set():
-                                            self.log_message('Stopping message retrieval.')
-                                            return
-                                        time.sleep(1)
-                                    self.log_message('Resuming search...')
-                                    break
-                else:
-                    last_message_id = messages[-1]['id']
-                
-                if self.config.get("ultra_fast_join"):
-                    time.sleep(0.5)
-                elif self.config.get("faster_join"):
-                    time.sleep(1)
-                else:
-                    time.sleep(5)
+                                            
+                                            self.log_message('Pausing for 3 minutes')
+                                            for _ in range(180):
+                                                if self.stop_event.is_set():
+                                                    return
+                                                time.sleep(1)
 
-    def start_retrieving(self):
-        self.stop_event.clear()
-        keyword = self.keyword_entry.get()
-        if keyword:
-            self.keyword_entry.config(state=tk.DISABLED)
-            threading.Thread(target=self.retrieve_messages, args=(self.CHANNEL_ID, keyword)).start()
-            self.start_button.config(text="Running", state=tk.DISABLED, disabledforeground="white")
-        else:
-            messagebox.showerror("Error", "Please enter a keyword")
+                if self.ultra_fast_join:
+                    for _ in range(5):
+                        if self.stop_event.is_set():
+                            return
+                        self.log_message('Looking for servers with 0.5 second delay...')
+                        time.sleep(0.1)
+                elif self.faster_join:
+                    for _ in range(10):
+                        if self.stop_event.is_set():
+                            return
+                        self.log_message('Looking for servers with 1 second delay...')
+                        time.sleep(0.1)
+                else:
+                    for _ in range(50):
+                        if self.stop_event.is_set():
+                            return
+                        self.log_message('Looking for servers with 5 second delay...')
+                        time.sleep(0.1)
 
     def stop_retrieving(self):
-        if not self.stop_event.is_set():
-            self.stop_event.set()
-            self.log_message('Stopping message retrieval.')
-            self.start_button.config(text="Start", state=tk.NORMAL)
-            self.keyword_entry.config(state=tk.NORMAL)
+        self.stop_event.set()
+        self.log_message('Stop button pressed, stopping program')
 
     def on_closing(self):
-        self.stop_retrieving()
+        self.stop_event.set()
+        self.log_message('Window closed, stopping program')
         self.root.destroy()
 
 if __name__ == "__main__":
